@@ -55,16 +55,16 @@ speedThresh=55;
 
 %% Save labels and create placeholder files for data
 
-tStart = datestr(clock,'mm-dd-yyyy-HH-MM-SS_');
+t = datestr(clock,'mm-dd-yyyy-HH-MM-SS_');
 labels = cell2table(labelMaker(handles.labels),'VariableNames',{'Strain' 'Sex' 'Treatment' 'ID' 'Day'});
 strain=labels{1,1}{:};
 treatment=labels{1,3}{:};
-labelID = [handles.fpath '\' tStart strain '_' treatment '_labels.dat'];         % File ID for label data
+labelID = [handles.fpath '\' t strain '_' treatment '_labels.dat'];         % File ID for label data
 writetable(labels, labelID);                                                % Save label table
 
 % Create placeholder files
-cenID = [handles.fpath '\' tStart strain '_' treatment '_Centroid.dat'];         % File ID for centroid data
-motorID = [handles.fpath '\' tStart strain '_' treatment '_Motor.dat'];          % File ID for motor data
+cenID = [handles.fpath '\' t strain '_' treatment '_Centroid.dat'];         % File ID for centroid data
+motorID = [handles.fpath '\' t strain '_' treatment '_Motor.dat'];          % File ID for motor data
  
 dlmwrite(cenID, []);                                                        % create placeholder ASCII file
 dlmwrite(motorID, []);                                                        % create placeholder ASCII file
@@ -423,10 +423,9 @@ m_freq=handles.pulse_frequency;
 m_interval=handles.pulse_interval;
 m_pulse_number=handles.pulse_number;
 m_pulse_amp=handles.pulse_amplitude;
-fpath=handles.fpath;
 
 %% Process data
-clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp fpath strain treatment tStart
+clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp
 
 % Create a plot of the centroid data as a check on the tracking
 cenDat=dlmread(cenID);
@@ -519,20 +518,18 @@ uistack(activityTrace, 'top')
 %%
 plotData(1,:)=[];
 
-circData.plotData=plotData;
 circData.tElapsed=tElapsed;
 circData.activeFlies=nanmean(speed)>0.01;
 circData.numActive=sum(circData.activeFlies);
 circData.speed=speed;
 circData.motorON=motorON;
 circData.motorOFF=motorOFF;
-circData.lightsON=tON;
-circData.lightsOFF=tOFF;
-circData.experiment_end=t;
-circData.freq=m_freq;
-circData.amp=m_pulse_amp;
-circData.interval=m_interval;
-circData.nPulse=m_pulse_number;
-
-save(strcat(tStart,strain,treatment,'circadian.mat'),circData);
+circData.freq=m_freq
+circData.amp=
+circData.interval=m_interval
+circData.nPulse=m_pulse_number
+=handles.pulse_frequency;
+=handles.pulse_interval;
+=handles.pulse_number;
+m_pulse_amp=handles.pulse_amplitude;
 

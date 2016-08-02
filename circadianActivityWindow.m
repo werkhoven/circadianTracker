@@ -1,4 +1,4 @@
-function plotData=circadianActivityWindow(motorData,interval,stepSize)
+function circData=circadianActivityWindow(interval,stepSize)
 
 %% Get paths to data files
 [fName,fDir,fFilter] = uigetfile('*.txt;*','Open data file',...
@@ -32,8 +32,14 @@ end
 % Slide window over speed data
 interval_step_num=round(interval/stepSize);
 plotData=zeros(length(samplingIndex)-interval_step_num,numFlies);
-for i=1:length(samplingIndex)-interval_step_num
+n=length(samplingIndex)-interval_step_num;
+f=round(n/100);
+for i=1:n
+    tic
     plotData(i,:)=nanmean(speed(samplingIndex(i):samplingIndex(i+interval_step_num)-1,:));
+    if mod(i,f)==0
+    disp([num2str(((numSteps-i)*toc)*60) ' estimated min remaining']);
+    end
 end
 
 %%
@@ -58,7 +64,7 @@ meanPlot(1)=[];
 plot(meanPlot,'r');
 hold on
 for i=1:length(mi2);
-    plot([mi1(i) mi1(i)],[0 max(meanPlot)+1],'Color',[0 0 1],'Linewidth',1);
+    plot([mi1(i) mi1(i)],[0 max(meanPlot)+1],'Color',[0 0 1],'Linewidth',2);
 end
 
 activityTrace = findobj(gca, 'Color', 'r');
@@ -67,6 +73,7 @@ uistack(activityTrace, 'top')
 %%
 plotData(1,:)=[];
 
+%{
 for h=1:4
 hold on
 figure();
@@ -81,6 +88,16 @@ figure();
       axis([0 size(plotData,1) 0 2]);
     end
 end
+%}
+circData.tElapsed=tElapsed;
+circData.activeFlies=nanmean(speed)>0.01;
+circData.numActive=sum(circData.activeFlies);
+circData.speed=speed;
+circData.motorON=motorON;
+circData.motorOFF=motorOFF;
+
+
+
 
 
 
