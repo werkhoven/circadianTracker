@@ -129,6 +129,7 @@ t
 handles.lights_ON
 handles.lights_OFF
 lightStatus
+strain
 
 %% GET PLATE COORDINATES
 
@@ -382,7 +383,6 @@ while tElapsed < handles.exp_duration
     t=clock;            % grab current time
     t=t(4:5);           % grab hrs and min only
 
-    
     if lightStatus==1 && t(1)==handles.lights_OFF(1)        % Turn light OFF if light's ON and t > lightsOFF time
         if t(2)>=handles.lights_OFF(2)
             writeInfraredWhitePanel(handles.teensy_port,0,0);
@@ -390,7 +390,7 @@ while tElapsed < handles.exp_duration
             writeInfraredWhitePanel(handles.teensy_port,0,0);
         end
     elseif lightStatus==0 && t(1)==handles.lights_ON(1)             % Turn light ON if light's OFF and t > lightsON time
-            if t(2)>=handles.lights_ON(2) && t(2)<handles.lights_OFF(2)
+            if t(2)>=handles.lights_ON(2)
                 writeInfraredWhitePanel(handles.teensy_port,0,handles.White_intensity);
                 lightStatus=1;
             end
@@ -417,8 +417,8 @@ while tElapsed < handles.exp_duration
 end
 
 t = clock;
-tON = handles.lightsON;
-tOFF = handles.lightsOFF;
+tON = handles.lights_ON;
+tOFF = handles.lights_OFF;
 m_freq=handles.pulse_frequency;
 m_interval=handles.pulse_interval;
 m_pulse_number=handles.pulse_number;
@@ -528,11 +528,12 @@ circData.motorON=motorON;
 circData.motorOFF=motorOFF;
 circData.lightsON=tON;
 circData.lightsOFF=tOFF;
-circData.experiment_end=t;
+circData.experiment_start=tStart;
 circData.freq=m_freq;
 circData.amp=m_pulse_amp;
 circData.interval=m_interval;
 circData.nPulse=m_pulse_number;
+clearvars -except circData fpath tStart strain treatment
 
-save(strcat(tStart,strain,treatment,'circadian.mat'),circData);
+save(strcat(fpath,'\',tStart,'_',strain,'_',treatment,'_','circadian.mat'),'circData');
 

@@ -118,6 +118,18 @@ handles.cam_gain=str2num(get(handles.edit_gain,'String'));
 handles.cam_exposure=str2num(get(handles.edit_exposure,'String'));
 handles.tracking_thresh=get(handles.threshold_slider,'Value');
 
+tString=get(handles.edit_lightsON,'String');
+divider=find(tString==':');
+hr=str2num(tString(1:divider-1));
+min=str2num(tString(divider+1))*10+str2num(tString(divider+2));
+handles.lights_ON=[hr min];
+
+tString=get(handles.edit_lightsOFF,'String');
+divider=find(tString==':');
+hr=str2num(tString(1:divider-1));
+min=str2num(tString(divider+1))*10+str2num(tString(divider+2));
+handles.lights_OFF=[hr min];
+
 % Update handles structure
 guidata(hObject, handles);
 
