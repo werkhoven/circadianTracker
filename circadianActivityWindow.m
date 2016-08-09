@@ -64,7 +64,7 @@ meanPlot(1)=[];
 plot(meanPlot,'r');
 hold on
 for i=1:length(mi2);
-    plot([mi1(i) mi1(i)],[0 max(meanPlot)+1],'Color',[0 0 1],'Linewidth',2);
+    plot([mi1(i) mi1(i)],[0 max(meanPlot)+1],'Color',[0 1 1],'Linewidth',2);
 end
 
 activityTrace = findobj(gca, 'Color', 'r');
@@ -80,7 +80,7 @@ figure();
     for i=h*24-23:h*24
       subplot(6,4,mod(i-1,24)+1);
       hold on
-      plot(plotData(:,i),'r');
+      plot(smooth(plotData(:,i),ceil(length(plotData)/50)),'r');
         for j=1:length(mi2);
             hold on
             plot([mi1(j) mi1(j)],[0 2],'Color',[0 0 1],'Linewidth',1);

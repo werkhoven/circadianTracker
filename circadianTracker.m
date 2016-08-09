@@ -273,7 +273,7 @@ while tElapsed < handles.exp_duration
 
     % Update timestamp
     tElapsed=toc;
-    pause(0.03);
+    pause(0.05);
  
         %Camera display    
         im=peekdata(handles.vid,1);         % acquire image from camera
@@ -337,8 +337,10 @@ while tElapsed < handles.exp_duration
 
         % Update the display
             
-        % Write data to the hard drive
-        dlmwrite(cenID, lastCentroid', '-append');
+        % Write data to the hard drive every third frame to reduce data
+        if mod(counter,3)==0
+        dlmwrite(cenID, single(lastCentroid'), '-append');
+        end
 
         format long
         %out(counter,:)=[mod(toc,100) NaN NaN isVibrationOn*isPulseOn reshape(centroidsTemp',1,96*2)];
@@ -346,7 +348,7 @@ while tElapsed < handles.exp_duration
         dt=tElapsed-prev_tStamp;
         speeds=dist./dt;
         speeds=speeds*8.6/(colScale/7); %convert pixel speeds to mm/s
-        dlmwrite(motorID,[counter dt isVibrationOn speeds'],'-append','delimiter','\t','precision',6);
+        dlmwrite(motorID,[counter single(dt) single(isVibrationOn) single(speeds')],'-append','delimiter','\t','precision',6);
 
         prevCentroids=lastCentroid;
 
@@ -387,13 +389,40 @@ while tElapsed < handles.exp_duration
         if t(2)>=handles.lights_OFF(2)
             writeInfraredWhitePanel(handles.teensy_port,0,0);
             lightStatus=0;
-            writeInfraredWhitePanel(handles.teensy_port,0,0);
+            ramp=-1;
+            t_ramp=toc;
+            rampCt=1;
+            waitTimes=100-logspace(0,2,255);     % Logarithmically increasing wait times for each intensity (totaling 91 min)
         end
     elseif lightStatus==0 && t(1)==handles.lights_ON(1)             % Turn light ON if light's OFF and t > lightsON time
-            if t(2)>=handles.lights_ON(2)
-                writeInfraredWhitePanel(handles.teensy_port,0,handles.White_intensity);
+            if t(2)>=handles.lights_ON(2) 
                 lightStatus=1;
+                ramp=1;
+                t_ramp=toc;
+                rampCt=1;
+                waitTimes=100-logspace(0,2,255); % Logarithmically decreasing wait times for each intensity (totaling 91 min)
             end
+    end
+    
+    %% Slowly ramp the light up or down to avoid startling the flies
+    
+    if ramp~= 0 && tElapsed-t_ramp > waitTimes(rampCt)
+        if ramp==1
+            writeInfraredWhitePanel(handles.teensy_port,0,uint8(rampCt));
+            t_ramp=toc;
+            rampCt=rampCt+1;
+            if rampCt > 255
+                ramp=0;
+            end
+        end
+        if ramp==-1
+            writeInfraredWhitePanel(handles.teensy_port,0,uint8(255-rampCt));
+            t_ramp=toc;
+            rampCt=rampCt+1;
+            if rampCt > 255
+                ramp=0;
+            end
+        end
     end
     
     %% Update frame counter and timestamp
@@ -446,88 +475,32 @@ end
 
 clearvars x y
 
-% Create plots for circadian data
+%% Generate population and individual plots
+
 interval=2;         % Width of sliding window in min
 stepSize=0.2;       % Incrimental step size of sliding window in min
 
-motorData=dlmread(motorID);
+[plotData,EvenHrIndices,timeLabels,lightON,lightOFF]=circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize);
 
-% Interval specifies the length of the sliding window in minutes and must
-% be converted to milliseconds
-interval=interval*60;
-numFlies=size(motorData,2)-3;
-tElapsed=cumsum(motorData(:,2));
-stepSize=stepSize*60;
-speed=motorData(:,4:size(motorData,2));
-transitions=[0 diff(motorData(:,3))'];
-motorON=find(transitions==1);
-motorOFF=find(transitions==-1)-1;
+%% Calculate baseline activity and arousal decay time
 
-% First point should be from first index to t = interval
-%firstIndex=sum(tElapsed<interval);
-samplingTimes=0:stepSize:tElapsed(end);
-numSteps=length(samplingTimes);
-samplingIndex=NaN(size(samplingTimes));
+[arousal,singlePlots]=circadianAnalyzeArousalResponse(speed,motorON,motorOFF,tElapsed);
 
-for i=1:numSteps
-   d=abs(tElapsed-samplingTimes(i));
-   [v,j]=min(d);
-   samplingIndex(i)=j;
-end
-
-% Slide window over speed data
-interval_step_num=round(interval/stepSize);
-plotData=zeros(length(samplingIndex)-interval_step_num,numFlies);
-n=length(samplingIndex)-interval_step_num;
-f=round(n/10);
-for i=1:n
-    tic
-    plotData(i,:)=nanmean(speed(samplingIndex(i):samplingIndex(i+interval_step_num)-1,:));
-    if mod(i,f)==0
-    disp([num2str(((n-i)*toc)) ' estimated seconds remaining']);
-    end
-end
-
-%%
-% Find indices from sampling data closest to motor transitions
-mi1=NaN(size(motorON));
-mi2=NaN(size(motorOFF));
-
-for i=1:length(motorON);
-    d=abs(samplingIndex-motorON(i));
-    [v,j]=min(d);
-    mi1(i)=j;
-    d=abs(samplingIndex-motorOFF(i));
-    [v,j]=min(d);
-    mi2(i)=j;
-end   
-
-
-%% Plot population mean over time and plot
-meanPlot=nanmean(plotData,2);
-meanPlot(1)=[];
-
-plot(meanPlot,'r');
-hold on
-for i=1:length(mi2);
-    plot([mi1(i) mi1(i)],[0 max(meanPlot)+1],'Color',[0 0 1],'Linewidth',2);
-end
-
-activityTrace = findobj(gca, 'Color', 'r');
-uistack(activityTrace, 'top')
-
-%%
-plotData(1,:)=[];
+%% Save data to struct
 
 circData.plotData=plotData;
 circData.tElapsed=tElapsed;
+circData.EvenHrIndices=EvenHrIndices;
+circData.timeLabels;
 circData.activeFlies=nanmean(speed)>0.01;
+circData.tLightsON=tON;
+circData.tLightsOFF=tOFF;
+circData.iLightsON=lightON;
+circData.iLightsOFF=lightOFF;
 circData.numActive=sum(circData.activeFlies);
 circData.speed=speed;
 circData.motorON=motorON;
 circData.motorOFF=motorOFF;
-circData.lightsON=tON;
-circData.lightsOFF=tOFF;
 circData.experiment_start=tStart;
 circData.freq=m_freq;
 circData.amp=m_pulse_amp;
