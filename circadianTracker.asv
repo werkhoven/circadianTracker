@@ -86,7 +86,7 @@ howManyPulses=0;                                    % Current num. pulses that h
 howManyVibrations=0;                                % Current num. pulses that have occured during the entire experiment
 pulseTime=(1/handles.pulse_frequency)/2;            % Length of time between successive pulses during same bout
 pulseDur=(1/handles.pulse_frequency)/2;             % Length of time any given pulse is on
-vibrationTime=handles.pulse_interval;
+vibrationInterval=handles.pulse_interval;
 vibrationDur=handles.pulse_number*(1/handles.pulse_frequency);
 
 %Initialize output matrix
@@ -184,6 +184,11 @@ set(handles.accept_thresh_pushbutton,'value',0);
 colormap('gray');
 imagesc(im)
 [xPlate,yPlate]=getline();
+sorted_x=sort(xPlate);
+
+% Get the plate width in pixels
+plate_width=mean(sorted_x(length(sorted_x)-1:length(sorted_x)-1))-mean(sorted_x([1 2]));
+pix2mm=108.2/plate_width;   % pixel to mm conversion factor (plate width in mm / plate width in pixels)
 
 isPlateGridPlotted=0;
 
@@ -268,6 +273,13 @@ tSinceLastRefUpdate=0;
 pixDev=ones(10,1);                                   % Num Std. of aboveThresh from mean
 noiseCt=1;                                           % Frame counter for noise sampling
 centStamp=zeros(size(ROI_centers,1),1);
+ramp=0;
+waitTimes=zeros(1,255);
+rampCt=1;
+t_ramp=0;
+tVibration=0;
+isVibrationOn=0;
+resetRef=0;
 
 while tElapsed < handles.exp_duration
 
@@ -275,54 +287,40 @@ while tElapsed < handles.exp_duration
     tElapsed=toc;
     pause(0.05);
  
-        %Camera display    
+ Grab new image and subtract reference    
         im=peekdata(handles.vid,1);         % acquire image from camera
         im=im(:,:,imagingLayer);            % extract imagingLayer channel
         diffIm=(refImage-im);               % Take difference image
-        
+
+   %Calculate noise level and reset references if noise is too high
         aboveThresh(mod(counter,10)+1)=sum(sum(diffIm>handles.tracking_thresh));
         pixDev(mod(counter,10)+1)=(nanmean(aboveThresh)-pixMean)/pixStd;
         
         % Reset references if noise threshold is exceeded
-        if mean(pixDev)>8 || (wasVibrationOn-isVibrationOn==1)
+        if mean(pixDev)>8 || resetRef
            refStack=repmat(im(:,:,1),1,1,handles.ref_stack_size);
            refImage=uint8(mean(double(refStack),3));
            aboveThresh=ones(10,1)*pixMean;
            pixDev=ones(10,1);
+           resetRef=0;
            disp('NOISE THRESHOLD REACHED, REFERENCES RESET')
         end
         
-        % Only gather centroids and record turns if noise is below
-        % threshold
+
         if pixDev(mod(ct,10)+1)<4 && ~isVibrationOn
 
-            %Detect every ref frame update
+            % Detect every ref frame update
             if toc-tSinceLastRefUpdate>=refStackUpdateTime
                 ref_counter=ref_counter+1;
                 refStack(:,:,mod(ref_counter,handles.ref_stack_size)+1)=im;
                 refImage=uint8(median(double(refStack),3)); % the actual ref image displayed is the median image of the refstack
-                %disp(['mean refImage brightness is ' num2str(mean(mean(refImage)))]);
-                %%%foundWells=find96WellPlate(im,0,xPlate,yPlate);
                 wellCoordinates=round(foundWells.coords);
                 colScale=foundWells.colScale;
                 ROISize=round((colScale/7)*ROIScale);
-                if isPlateGridPlotted==0
-                    isPlateGridPlotted=1;
-                    %figure(1)
-                    hold on
-                    %%plot([xPlate;xPlate(1)],[yPlate;yPlate(1)],'c')
-                    %figure(2)
-                    hold on
-                end
                 tSinceLastRefUpdate=toc;
             end
 
-            %% Automatically re-detect the well positions after a motor pulse
-            if wasPulseOn-isPulseOn==1
-                pack
-                refImage=im;
-                tSinceLastRefUpdate=toc;
-            end
+         Extract and sort centroids
 
                 % Extract image properties and exclude centroids not satisfying
                 % size criteria
@@ -335,49 +333,39 @@ while tElapsed < handles.exp_duration
                     optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
         end
 
-        % Update the display
+%% Update the display
             
         % Write data to the hard drive every third frame to reduce data
         if mod(counter,3)==0
         dlmwrite(cenID, single(lastCentroid'), '-append');
         end
 
+%% Write data to the hardrive 
         format long
         %out(counter,:)=[mod(toc,100) NaN NaN isVibrationOn*isPulseOn reshape(centroidsTemp',1,96*2)];
         dist=sqrt((lastCentroid(:,1)-prevCentroids(:,1)).^2+(lastCentroid(:,2)-prevCentroids(:,2)).^2);
         dt=tElapsed-prev_tStamp;
         speeds=dist./dt;
-        speeds=speeds*8.6/(colScale/7); %convert pixel speeds to mm/s
+        speeds=speeds*pix2mm; %convert pixel speeds to mm/s
         dlmwrite(motorID,[counter single(dt) single(isVibrationOn) single(speeds')],'-append','delimiter','\t','precision',6);
 
         prevCentroids=lastCentroid;
 
     
-    %% Vibrations - turns vibrations on and off at the correct times
-    wasVibrationOn=isVibrationOn;
-    if tElapsed>vibrationTime*(howManyVibrations+1) && tElapsed<vibrationTime*(howManyVibrations+1)+vibrationDur
-        isVibrationOn=1;
-        wasPulseOn=isPulseOn;
-        if tElapsed>vibrationTime*(howManyVibrations+1)+pulseTime*(howManyPulses) && tElapsed<vibrationTime*(howManyVibrations+1)+pulseTime*(howManyPulses)+pulseDur
-            isPulseOn=1;
-        else
-            isPulseOn=0;
-            if wasPulseOn-isPulseOn==1
-                howManyPulses=howManyPulses+1;
-            end
-        end
-        
-    else
-        howManyPulses=0;
-        isVibrationOn=0;
-        if wasVibrationOn-isVibrationOn==1
-            howManyVibrations=howManyVibrations+1;
+%% Pulse the vibrational motors at the interval specified in the interpulse interval
+    if mod(tElapsed,vibrationInterval)<mod(prev_tStamp,vibrationInterval) && ramp==0 && lightStatus==0
+        if  tElapsed<handles.exp_duration-0.5
+            disp('VIBRATING')
+            isVibrationOn=1;
+            writeVibrationalMotors(handles.teensy_port,6,handles.pulse_frequency,handles.pulse_interval,...
+                handles.pulse_number,handles.pulse_amplitude);
+            tVibration=toc;
         end
     end
-    if wasVibrationOn-isVibrationOn==-1 && tElapsed<handles.exp_duration-0.5
-        disp('VIBRATING')
-        writeVibrationalMotors(handles.teensy_port,6,handles.pulse_frequency,handles.pulse_interval,...
-            handles.pulse_number,handles.pulse_amplitude);
+    
+    if isVibrationOn && tElapsed-tVibration>vibrationDur
+        isVibrationOn=0;
+        resetRef=1;
     end
     
     %% Update light/dark cycle
@@ -386,21 +374,20 @@ while tElapsed < handles.exp_duration
     t=t(4:5);           % grab hrs and min only
 
     if lightStatus==1 && t(1)==handles.lights_OFF(1)        % Turn light OFF if light's ON and t > lightsOFF time
-        if t(2)>=handles.lights_OFF(2)
-            writeInfraredWhitePanel(handles.teensy_port,0,0);
+        if t(2)==handles.lights_OFF(2)
             lightStatus=0;
             ramp=-1;
             t_ramp=toc;
             rampCt=1;
-            waitTimes=100-logspace(0,2,255);     % Logarithmically increasing wait times for each intensity (totaling 91 min)
+            waitTimes=linspace(0,1,255);     % Logarithmically increasing wait times for each intensity (totaling 91 min)
         end
     elseif lightStatus==0 && t(1)==handles.lights_ON(1)             % Turn light ON if light's OFF and t > lightsON time
-            if t(2)>=handles.lights_ON(2) 
+            if t(2)==handles.lights_ON(2) 
                 lightStatus=1;
                 ramp=1;
                 t_ramp=toc;
                 rampCt=1;
-                waitTimes=100-logspace(0,2,255); % Logarithmically decreasing wait times for each intensity (totaling 91 min)
+                waitTimes=max(linspace(0,1,255))-linspace(0,1,255); % Logarithmically decreasing wait times for each intensity (totaling 91 min)
             end
     end
     
@@ -411,16 +398,21 @@ while tElapsed < handles.exp_duration
             writeInfraredWhitePanel(handles.teensy_port,0,uint8(rampCt));
             t_ramp=toc;
             rampCt=rampCt+1;
+            disp('ramping up')
             if rampCt > 255
                 ramp=0;
+                disp('ramping finished');
             end
         end
-        if ramp==1
-            writeInfraredWhitePanel(handles.teensy_port,0,uint8(rampCt));
+        if ramp==-1
+            writeInfraredWhitePanel(handles.teensy_port,0,uint8(255-rampCt));
             t_ramp=toc;
             rampCt=rampCt+1;
+            disp('ramping down')
             if rampCt > 255
                 ramp=0;
+                disp('ramping finished');
+                r_com=1;
             end
         end
     end
@@ -480,18 +472,21 @@ clearvars x y
 interval=2;         % Width of sliding window in min
 stepSize=0.2;       % Incrimental step size of sliding window in min
 
-[plotData,EvenHrIndices,timeLabels,lightON,lightOFF]=circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize);
+[speed,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
+    circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize);
 
 %% Calculate baseline activity and arousal decay time
 
+if ~isempty(motorON) && ~isempty(motorOFF)
 [arousal,singlePlots]=circadianAnalyzeArousalResponse(speed,motorON,motorOFF,tElapsed);
+end
 
 %% Save data to struct
 
 circData.plotData=plotData;
 circData.tElapsed=tElapsed;
 circData.EvenHrIndices=EvenHrIndices;
-circData.timeLabels;
+circData.timeLabels=timeLabels;
 circData.activeFlies=nanmean(speed)>0.01;
 circData.tLightsON=tON;
 circData.tLightsOFF=tOFF;

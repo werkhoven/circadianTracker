@@ -1,4 +1,4 @@
-function [plotData,EvenHrIndices,timeLabels,lightON,lightOFF]=circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize)
+function [speed,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize)
 
 %% Define parameters and variables for analysis
 
@@ -81,6 +81,8 @@ end
 % Find the indices corresponding to changes
 timeON2OFF=(tOFF(1)-tON(1))*60*60 + (tOFF(2)-tON(2))*60;
 timeOFF2ON=24*60*60-timeON2OFF;
+lightOFF=[];
+lightON=[];
 
 if lightStat
     t=tOFF(1)*60*60+tOFF(2)*60;
@@ -156,7 +158,7 @@ end
 
 plotData(1,:)=[];
 meanPlot=nanmean(plotData,2);
-w=floor(size(meanPlot,1)/150);
+w=ceil(size(meanPlot,1)/100)
 smoothedPlot=smooth(meanPlot',w,'lowess');
 
 % Plot light patches

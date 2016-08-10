@@ -101,8 +101,8 @@ IR_intensity=uint8((IR_intensity/100)*255);
 handles.White_intensity=uint8((White_intensity/100)*255);
 
 % Write values to microcontroller
-writeInfraredWhitePanel(handles.teensy_port,0,IR_intensity);
-writeInfraredWhitePanel(handles.teensy_port,1,handles.White_intensity);
+writeInfraredWhitePanel(handles.teensy_port,1,IR_intensity);
+writeInfraredWhitePanel(handles.teensy_port,0,handles.White_intensity);
 
 %% Initialize circadian parameters
 handles.lights_ON=get(handles.edit_lightsON,'String');
