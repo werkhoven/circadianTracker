@@ -377,7 +377,7 @@ while tElapsed < handles.exp_duration
             ramp=-1;
             t_ramp=toc;
             rampCt=1;
-            waitTimes=linspace(0,1,255);     % Logarithmically increasing wait times for each intensity (totaling 91 min)
+            waitTimes=logspace(0,2,255);     % Logarithmically increasing wait times for each intensity (totaling 91 min)
         end
     elseif lightStatus==0 && t(1)==handles.lights_ON(1)             % Turn light ON if light's OFF and t > lightsON time
             if t(2)==handles.lights_ON(2) 
@@ -385,7 +385,7 @@ while tElapsed < handles.exp_duration
                 ramp=1;
                 t_ramp=toc;
                 rampCt=1;
-                waitTimes=max(linspace(0,1,255))-linspace(0,1,255); % Logarithmically decreasing wait times for each intensity (totaling 91 min)
+                waitTimes=max(logspace(0,1.47,255))-logspace(0,1.47,255); % Logarithmically decreasing wait times for each intensity (totaling 91 min)
             end
     end
     
