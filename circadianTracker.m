@@ -51,7 +51,7 @@ handles.pulse_interval=handles.pulse_interval*60; % Convert min to sec
 
 %Fly position extraction
 ROIScale=0.9/2;
-speedThresh=55;
+speedThresh=4;
 
 %% Save labels and create placeholder files for data
 
@@ -328,7 +328,7 @@ while tElapsed < handles.exp_duration
 
                 % Match centroids to ROIs by finding nearest ROI center
                 [lastCentroid,centStamp]=...
-                    optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
+                    optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize*0.53,lastCentroid,centStamp,tElapsed);
         end
 
 %% Update the display
