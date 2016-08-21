@@ -10,8 +10,7 @@ haall=zeros(numFlies,length(bins)-1);
 
 for i=1:numFlies
     fly=cData(i);
-    valid_trials=fly.speed>0.15 & fly.speed<widths(i)*0.5 & fly.r<0.5*widths(i);
-    sum(valid_trials)
+    valid_trials=fly.speed>0.8 & fly.speed<0.25*widths(i) & fly.r<0.5*widths(i);
     s=fly.speed;
     r=fly.r;
     a=fly.theta;

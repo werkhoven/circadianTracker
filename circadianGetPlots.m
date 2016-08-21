@@ -105,9 +105,16 @@ if lightStat
         lightOFF=[lightOFF length(offsetTime)];
     end
 else
-    t=tON(1)*60*60+tON(2)*60;
+    t=tON(1)*60*60+tON(2)*60;         % Calculate first lights ON time
+    
+    % If the exp started in the evening, shift time by one day
+    if offsetTime(1) > 12*60*60
+        t=t+24*60*60;
+    end
+    
     [v,iON]=min(abs(offsetTime-((t))));
     lightON=[iON];
+    lightOFF=1;
     while t < offsetTime(end)
         t=t+timeON2OFF;
         if t <= offsetTime(end)
@@ -125,6 +132,17 @@ else
     end
 end
     
+%% Convert light ON/OFF times into vertices for light region shading in plots
+
+if lightON(1) > lightOFF(1)
+    lightOFF(1)=[];
+    if isempty(lightOFF)
+        lightOFF=length(offsetTime);
+    elseif length(lightOFF)~=length(lightON)    
+        lightOFF(end)=length(offsetTime);
+    end
+end
+
 
 %% Slide window over speed data
 interval_step_num=ceil(interval/stepSize);

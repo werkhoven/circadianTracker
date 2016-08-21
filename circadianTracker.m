@@ -51,7 +51,7 @@ handles.pulse_interval=handles.pulse_interval*60; % Convert min to sec
 
 %Fly position extraction
 ROIScale=0.9/2;
-speedThresh=4;
+speedThresh=50;
 
 %% Save labels and create placeholder files for data
 
@@ -158,7 +158,7 @@ while ~stop
     
     handles.tracking_thresh=get(handles.threshold_slider,'value');
     props=regionprops((diffIm>handles.tracking_thresh),'Centroid','Area');
-    validCentroids=([props.Area]>6&[props.Area]<120);
+    validCentroids=([props.Area]>6&[props.Area]<250);
     cenDat=reshape([props(validCentroids).Centroid],2,length([props(validCentroids).Centroid])/2)';
     
     % Display thresholded image and plot centroids
@@ -228,7 +228,7 @@ while ct<pixDistSize;
 
                % Extract regionprops and record centroid for blobs with (4 > area > 120) pixels
                props=regionprops((diffIm>handles.tracking_thresh),'Centroid','Area');
-               validCentroids=([props.Area]>6&[props.Area]<120);
+               validCentroids=([props.Area]>6&[props.Area]<250);
                
                % Keep only centroids satisfying size constraints and reshape into
                % ROInumber x 2 array
@@ -323,20 +323,20 @@ while tElapsed < handles.exp_duration
                 % Extract image properties and exclude centroids not satisfying
                 % size criteria
                 props=regionprops((diffIm>handles.tracking_thresh),'Centroid','Area');
-                validCentroids=([props.Area]>6&[props.Area]<120);
+                validCentroids=([props.Area]>6&[props.Area]<250);
                 cenDat=reshape([props(validCentroids).Centroid],2,length([props(validCentroids).Centroid])/2)';
 
                 % Match centroids to ROIs by finding nearest ROI center
                 [lastCentroid,centStamp]=...
-                    optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize*0.53,lastCentroid,centStamp,tElapsed);
+                    optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
         end
 
 %% Update the display
             
         % Write data to the hard drive every third frame to reduce data
-        if mod(counter,3)==0
+        %if mod(counter,3)==0
         dlmwrite(cenID, single(lastCentroid'), '-append');
-        end
+        %end
 
 %% Write data to the hardrive 
         format long
@@ -444,27 +444,6 @@ m_pulse_number=handles.pulse_number;
 m_pulse_amp=handles.pulse_amplitude;
 fpath=handles.fpath;
 
-%% Process data
-clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp fpath strain treatment tStart
-
-% Create a plot of the centroid data as a check on the tracking
-cenDat=dlmread(cenID);
-x=cenDat(mod(1:size(cenDat,1),2)==1,:);
-y=cenDat(mod(1:size(cenDat,1),2)==0,:);
-clearvars cenDat
-
-% Subsample the data to 1,000 data points per fly
-f=round(size(x,1)/1000);
-figure(1);
-
-for i=1:size(x,2)
-    hold on
-    plot(x(mod(1:size(x,1),f)==0,i),y(mod(1:size(y,1),f)==0,i));
-    hold off
-end
-
-clearvars x y
-
 %% Generate population and individual plots
 
 interval=2;         % Width of sliding window in min
@@ -479,7 +458,52 @@ if ~isempty(motorON) && ~isempty(motorOFF)
 [arousal,singlePlots]=circadianAnalyzeArousalResponse(speed,motorON,motorOFF,tElapsed);
 end
 
+%% Analyze handedness
+
+clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp fpath strain treatment tStart...
+    arousal singlePlots tElapsed speed plotData EvenHrIndices timeLabels lightON lightOFF motorON motorOFF
+
+% Create a plot of the centroid data as a check on the tracking
+cenDat=dlmread(cenID);
+centroid=single(cenDat);
+x=cenDat(mod(1:size(cenDat,1),2)==1,:);
+y=cenDat(mod(1:size(cenDat,1),2)==0,:);
+clearvars cenDat 
+
+% Subsample the data to 1,000 data points per fly
+f=round(size(x,1)/1000);
+figure(1);
+
+for i=1:size(x,2)
+    hold on
+    plot(x(mod(1:size(x,1),f)==0,i),y(mod(1:size(y,1),f)==0,i));
+    hold off
+end
+
+% Format centroid coords for arena circling processing
+centers=single(zeros(size(x,2),2));
+centers(:,1)=nanmean(x);
+centers(:,2)=nanmean(y);
+centroid=single(NaN(size(x,1),size(x,2)*2));
+centroid(:,mod(1:size(centroid,2),2)==1)=x;
+centroid(:,mod(1:size(centroid,2),2)==0)=y;
+clearvars x y
+
+tmp_tElapsed=tElapsed(mod(1:length(tElapsed),3)==0);
+centroid=[tmp_tElapsed centroid];
+clearvars tmp_tElapsed
+
+% Extract handedness metrics
+cData=circadianHandData(centroid,(size(centroid,2)-1)/2,centers);
+flyCircles=circAngle(cData,[cData(:).width]);
+circPlotHandTraces(flyCircles,centroid,centers,1);
+clearvars cData centroid centers
+
 %% Save data to struct
+
+circData.ang_hist=[flyCircles(:).angleavg];
+circData.mu=[flyCircles(:).mu];
+clearvars flyCircles
 
 circData.plotData=plotData;
 circData.tElapsed=tElapsed;
@@ -492,6 +516,8 @@ circData.iLightsON=lightON;
 circData.iLightsOFF=lightOFF;
 circData.numActive=sum(circData.activeFlies);
 circData.speed=speed;
+circData.arousal=arousal;
+circData.singlePlots=singlePlots;
 circData.motorON=motorON;
 circData.motorOFF=motorOFF;
 circData.experiment_start=tStart;

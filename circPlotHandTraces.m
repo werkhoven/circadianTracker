@@ -10,7 +10,7 @@ bins(end)=[];
 
 
 for i=1:numFlies
-    i
+   disp(i)
    if mod(i-1,10)==0
        figure()
        k=0;
