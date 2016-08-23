@@ -18,6 +18,6 @@ for j=1:numFlies
     dhist=histc(out(j).r,bins);
     dhist=dhist./sum(dhist);
     dhistCDF=cumsum(dhist);
-    [v,i]=min(abs(0.99-dhistCDF));
+    [v,i]=min(abs(0.95-dhistCDF));
     out(j).width=bins(i);
 end

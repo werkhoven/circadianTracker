@@ -55,16 +55,16 @@ speedThresh=50;
 
 %% Save labels and create placeholder files for data
 
-tStart = datestr(clock,'mm-dd-yyyy-HH-MM-SS_');
+tString = datestr(clock,'mm-dd-yyyy-HH-MM-SS_');
 labels = cell2table(labelMaker(handles.labels),'VariableNames',{'Strain' 'Sex' 'Treatment' 'ID' 'Day'});
 strain=labels{1,1}{:};
 treatment=labels{1,3}{:};
-labelID = [handles.fpath '\' tStart strain '_' treatment '_labels.dat'];         % File ID for label data
+labelID = [handles.fpath '\' tString strain '_' treatment '_labels.dat'];         % File ID for label data
 writetable(labels, labelID);                                                % Save label table
 
 % Create placeholder files
-cenID = [handles.fpath '\' tStart strain '_' treatment '_Centroid.dat'];         % File ID for centroid data
-motorID = [handles.fpath '\' tStart strain '_' treatment '_Motor.dat'];          % File ID for motor data
+cenID = [handles.fpath '\' tString strain '_' treatment '_Centroid.dat'];         % File ID for centroid data
+motorID = [handles.fpath '\' tString strain '_' treatment '_Motor.dat'];          % File ID for motor data
  
 dlmwrite(cenID, []);                                                        % create placeholder ASCII file
 dlmwrite(motorID, []);                                                        % create placeholder ASCII file
@@ -125,7 +125,7 @@ else
         lightStatus=0;
 end
 
-t
+tStart=clock
 handles.lights_ON
 handles.lights_OFF
 lightStatus
@@ -334,9 +334,9 @@ while tElapsed < handles.exp_duration
 %% Update the display
             
         % Write data to the hard drive every third frame to reduce data
-        if mod(counter,3)==0
+        %if mod(counter,3)==0
         dlmwrite(cenID, single(lastCentroid'), '-append');
-        end
+        %end
 
 %% Write data to the hardrive 
         format long
@@ -451,7 +451,20 @@ stepSize=0.2;       % Incrimental step size of sliding window in min
 
 [speed,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
     circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize);
+%{
+% Calculate speed thresholds
+bins=linspace(0,8,500);
+tmp_speed=speed(:);
+tmp_speed(tmp_speed==0)=[];                % Remove trials where flies aren't moving
+speed_hist=histc(tmp_speed,bins);          % generate speed histogram
+speed_hist=speed_hist./sum(speed_hist);
+speed_cdf=cumsum(speed_hist);              % convert to cummulative distribution to find upper bound
+[v,cut_off]=min(abs(0.95-speed_cdf));      % find a conservative cut off value that captures 95% of of the frames
+speed_thresh=bins(cut_off);
+clearvars tmp_speed speed_hist speed_cdf cut_off bins
 
+valid_trials=speed>0 & speed<speed_thresh;
+%}
 %% Calculate baseline activity and arousal decay time
 
 if ~isempty(motorON) && ~isempty(motorOFF)
@@ -467,12 +480,14 @@ clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pu
 cenDat=dlmread(cenID);
 centroid=single(cenDat);
 x=cenDat(mod(1:size(cenDat,1),2)==1,:);
+%x=x(mod(1:size(x,1),3)==0,:);
 y=cenDat(mod(1:size(cenDat,1),2)==0,:);
+%y=y(mod(1:size(y,1),3)==0,:);
 clearvars cenDat 
 
 % Subsample the data to 1,000 data points per fly
 f=round(size(x,1)/1000);
-figure(1);
+figure();
 
 for i=1:size(x,2)
     hold on
@@ -480,17 +495,32 @@ for i=1:size(x,2)
     hold off
 end
 
-clearvars x y
-
 % Format centroid coords for arena circling processing
+centers=single(zeros(size(x,2),2));
+centers(:,1)=nanmean(x);
+centers(:,2)=nanmean(y);
 centroid=single(NaN(size(x,1),size(x,2)*2));
 centroid(:,mod(1:size(centroid,2),2)==1)=x;
 centroid(:,mod(1:size(centroid,2),2)==0)=y;
 clearvars x y
 
 tmp_tElapsed=tElapsed(mod(1:length(tElapsed),3)==0);
+centroid=[tmp_tElapsed centroid];
+clearvars tmp_tElapsed
+
+% Extract handedness metrics
+
+cData=circadianHandData(centroid,(size(centroid,2)-1)/2,centers);
+flyCircles=circAngle(cData,[cData(:).width]);
+circPlotHandTraces(flyCircles,centroid,centers,1);
+
+clearvars cData centroid centers
 
 %% Save data to struct
+
+circData.ang_hist=[flyCircles(:).angleavg];
+circData.mu=[flyCircles(:).mu];
+clearvars flyCircles
 
 circData.plotData=plotData;
 circData.tElapsed=tElapsed;
