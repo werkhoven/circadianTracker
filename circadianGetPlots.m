@@ -1,4 +1,4 @@
-function [speed,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize)
+function [tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize)
 
 %% Define parameters and variables for analysis
 
@@ -10,7 +10,6 @@ interval=interval*60;
 numFlies=size(motorData,2)-3;
 tElapsed=cumsum(motorData(:,2));
 stepSize=stepSize*60;
-speed=motorData(:,4:size(motorData,2));
 transitions=[0 diff(motorData(:,3))'];
 motorON=find(transitions==1);
 motorOFF=find(transitions==-1)-1;

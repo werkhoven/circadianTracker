@@ -227,7 +227,7 @@ while tElapsed < handles.exp_duration
 
     % Update timestamp
     tElapsed=toc;
-    pause(0.05);
+    pause(0.15);
  
         % Grab new image and subtract reference    
         im=peekdata(handles.vid,1);         % acquire image from camera
@@ -276,18 +276,14 @@ while tElapsed < handles.exp_duration
 %% Update the display
             
         % Write data to the hard drive every third frame to reduce data
-        if mod(counter,3)==0
         dlmwrite(cenID, single(lastCentroid'), '-append');
-        end
 
 %% Write data to the hardrive 
         format long
         %out(counter,:)=[mod(toc,100) NaN NaN isVibrationOn*isPulseOn reshape(centroidsTemp',1,96*2)];
         dist=sqrt((lastCentroid(:,1)-prevCentroids(:,1)).^2+(lastCentroid(:,2)-prevCentroids(:,2)).^2);
         dt=tElapsed-prev_tStamp;
-        speeds=dist./dt;
-        speeds=speeds*pix2mm; %convert pixel speeds to mm/s
-        dlmwrite(motorID,[counter single(dt) single(isVibrationOn) single(speeds')],'-append','delimiter','\t','precision',6);
+        dlmwrite(motorID,[counter single(dt) single(isVibrationOn)],'-append','delimiter','\t','precision',6);
 
         prevCentroids=lastCentroid;
 
@@ -386,32 +382,18 @@ m_pulse_number=handles.pulse_number;
 m_pulse_amp=handles.pulse_amplitude;
 fpath=handles.fpath;
 
-%% Generate population and individual plots
-
-interval=2;         % Width of sliding window in min
-stepSize=0.2;       % Incrimental step size of sliding window in min
-
-[speed,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
-    circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize);
-
-%% Calculate baseline activity and arousal decay time
-
-if ~isempty(motorON) && ~isempty(motorOFF)
-[arousal,singlePlots]=circadianAnalyzeArousalResponse(speed,motorON,motorOFF,tElapsed);
-end
-
 %% Analyze handedness
 
 clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp fpath strain treatment tStart...
-    arousal singlePlots tElapsed speed plotData EvenHrIndices timeLabels lightON lightOFF motorON motorOFF labelID
+    arousal singlePlots tElapsed speed plotData EvenHrIndices timeLabels lightON lightOFF motorON motorOFF labelID pix2mm
 
 % Create a plot of the centroid data as a check on the tracking
 cenDat=dlmread(cenID);
 cenDat=single(cenDat);
 x=cenDat(mod(1:size(cenDat,1),2)==1,:);
-x=x(mod(1:length(x),3)==0,:);
+%x=x(mod(1:length(x),3)==0,:);
 y=cenDat(mod(1:size(cenDat,1),2)==0,:);
-y=y(mod(1:length(y),3)==0,:);
+%y=y(mod(1:length(y),3)==0,:);
 clearvars cenDat 
 
 % Subsample the data to 1,000 data points per fly
@@ -433,19 +415,33 @@ centroid(:,mod(1:size(centroid,2),2)==1)=x;
 centroid(:,mod(1:size(centroid,2),2)==0)=y;
 clearvars x y
 
-
-tmp_speed=speed(mod(1:length(tElapsed),3)==0,:);
+%tmp_speed=speed(mod(1:length(tElapsed),3)==0,:);
 %centroid=[tmp_tElapsed centroid];
 %clearvars tmp_tElapsed
 %}
-% Extract handedness metrics
 
-cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers);
-flyCircles=avgAngle_legacy(cData,[cData(:).width],tmp_speed);
+% Extract handedness metrics
+cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers,dt,pix2mm);
+flyCircles=avgAngle_legacy(cData,[cData(:).width]);
 %circPlotHandTraces(flyCircles,centroid,centers,0);
 
-clearvars cData centroid centers
+clearvars centroid centers
+speed=[cData(:).speed];
+clearvars cData
 
+%% Generate population and individual plots
+
+interval=2;         % Width of sliding window in min
+stepSize=0.2;       % Incrimental step size of sliding window in min
+
+[tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
+    circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize);
+
+%% Calculate baseline activity and arousal decay time
+
+if ~isempty(motorON) && ~isempty(motorOFF)
+[arousal,singlePlots]=circadianAnalyzeArousalResponse(speed,motorON,motorOFF,tElapsed);
+end
 %% Save data to struct
 
 flyTracks.exp='Circadian';
@@ -454,6 +450,7 @@ flyTracks.ang_hist=[flyCircles(:).angleavg];
 flyTracks.mu=[flyCircles(:).mu];
 clearvars flyCircles
 
+flyTracks.pix2mm=pix2mm;
 flyTracks.plotData=plotData;
 flyTracks.tStamps=tElapsed;
 flyTracks.EvenHrIndices=EvenHrIndices;
@@ -465,8 +462,10 @@ flyTracks.iLightsON=lightON;
 flyTracks.iLightsOFF=lightOFF;
 flyTracks.numActive=sum(flyTracks.activeFlies);
 flyTracks.speed=speed;
+if ~isempty(motorON) && ~isempty(motorOFF)
 flyTracks.arousal=arousal;
 flyTracks.singlePlots=singlePlots;
+end
 flyTracks.motorON=motorON;
 flyTracks.motorOFF=motorOFF;
 flyTracks.experiment_start=tStart;
