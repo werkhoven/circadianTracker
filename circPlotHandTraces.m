@@ -5,7 +5,7 @@ raw_data(:,1)=[];
 
 colors = rand(1,3,numFlies);
 numFigures=ceil(numFlies/10);
-bins=0:2*pi/25:2*pi;
+bins=0:2*pi/26:2*pi;
 bins(end)=[];
 
 
@@ -36,14 +36,13 @@ for i=1:numFlies
     % Plot angle histogram
     hold on
     subplot(5,5,subP+5);
-    h1=plot(bins,flyCircles(i).angleavg,'color',colors(:,:,i));
-    xLabels={'0';'pi/2';'pi';'3pi/2'};
-    set(gca,'Xtick',[0:pi/2:3*pi/2],'XtickLabel',xLabels)
+    h1=plot(flyCircles(i).angleavg,'color',colors(:,:,i));
+    xLabels={'0';'\pi/2';'\pi';'3\pi/2';'2\pi'};
+    set(gca,'Xtick',[0 6 13.5 20 26],'XtickLabel',xLabels)
     set(h1,'Linewidth',2)
     legend(['u=' num2str(flyCircles(i).mu)],'Location','northeast')
     legend('boxoff')
-    axis([0,2*pi,0,0.25]);
-
+    axis([0,length(bins),0,0.25]);
        if subP==5
             k=k+1;
        end 

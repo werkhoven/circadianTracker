@@ -5,40 +5,6 @@
 
 clearvars -except handles
 
-%% Execute this section to initialize workspace with UI variables
-
-%{
-handles.fpath=...
-'C:\Users\debivort\Documents\MATLAB\Decathlon Raw Data\Testing';
-handles.exp_duration=0.01;
-handles.pulse_interval=1;
-handles.pulse_number=5;
-handles.pulse_frequency=1;
-handles.labels=cell(1,8);
-handles.labels(:)={''};
-handles.labels(1,1)={'testStrain'};
-handles.ref_freq=120;
-handles.ref_stack_size=3;
-handles.tracking_thresh=22.3;
-
-%Close and delete any open serial objects
-if ~isempty(instrfindall)
-fclose(instrfindall);           % Make sure that the COM port is closed
-delete(instrfindall);           % Delete any serial objects in memory
-end
-
-% Attempt handshake with light panel teensy
-[handles.teensy_port,ports]=identifyMicrocontrollers;
-
-camInfo=imaqhwinfo('pointgrey');
-handles.camInfo=camInfo;
-handles.Cam_mode=handles.camInfo.DeviceInfo.SupportedFormats(3);
-
-imaqreset;
-pause(0.2);
-handles.vid=initializeCamera(handles.camInfo.AdaptorName,handles.camInfo.DeviceIDs{1},handles.Cam_mode{:});
-%}
-
 %% INPUT VARIABLES
 
 %refStackUpdateTiming=1; % How often to update a ref image, so all ref images updated 7*5 = 35sec
@@ -89,24 +55,6 @@ pulseDur=(1/handles.pulse_frequency)/2;             % Length of time any given p
 vibrationInterval=handles.pulse_interval;
 vibrationDur=handles.pulse_number*(1/handles.pulse_frequency);
 
-%Initialize output matrix
-out=[];
-% 'out' is a 2D matrix.
-% Number of lines: one per time point. There are as many lines as the
-% variable 'counter' at the end of the experiment.
-% Number of columns: 196.
-%
-% First column: Time elapsed since the beginning of
-% the experiment (variable 'tElapsed'). Second column: Cumulated instant
-% speed for all the wells. Third column: Standard deviation of the instant
-% speed calculated through all the wells. Fourth column: 1 if vibration is
-% on, 0 if not. From columns 5 to 192: coordinates of the centroid detected
-% in each well, [X(well 1) Y(well 1) X(well 2)...].
-% 
-% For second and third columns: If no centroid is detected, then it takes
-% the value NaN. For the columns 5 to 192: If there is no movement detected
-% in the well i, then X(well i)=NaN and Y(well i)=NaN
-
 %% Determine position in light/dark cycle and initialize white light
 
 t=clock;            % grab current time
@@ -124,12 +72,6 @@ else
         writeInfraredWhitePanel(handles.teensy_port,0,0);
         lightStatus=0;
 end
-
-tStart=clock
-handles.lights_ON
-handles.lights_OFF
-lightStatus
-strain
 
 %% GET PLATE COORDINATES
 
@@ -334,9 +276,9 @@ while tElapsed < handles.exp_duration
 %% Update the display
             
         % Write data to the hard drive every third frame to reduce data
-        %if mod(counter,3)==0
+        if mod(counter,3)==0
         dlmwrite(cenID, single(lastCentroid'), '-append');
-        %end
+        end
 
 %% Write data to the hardrive 
         format long
@@ -451,20 +393,7 @@ stepSize=0.2;       % Incrimental step size of sliding window in min
 
 [speed,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
     circadianGetPlots(motorID,tStart,tON,tOFF,interval,stepSize);
-%{
-% Calculate speed thresholds
-bins=linspace(0,8,500);
-tmp_speed=speed(:);
-tmp_speed(tmp_speed==0)=[];                % Remove trials where flies aren't moving
-speed_hist=histc(tmp_speed,bins);          % generate speed histogram
-speed_hist=speed_hist./sum(speed_hist);
-speed_cdf=cumsum(speed_hist);              % convert to cummulative distribution to find upper bound
-[v,cut_off]=min(abs(0.95-speed_cdf));      % find a conservative cut off value that captures 95% of of the frames
-speed_thresh=bins(cut_off);
-clearvars tmp_speed speed_hist speed_cdf cut_off bins
 
-valid_trials=speed>0 & speed<speed_thresh;
-%}
 %% Calculate baseline activity and arousal decay time
 
 if ~isempty(motorON) && ~isempty(motorOFF)
@@ -480,9 +409,7 @@ clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pu
 cenDat=dlmread(cenID);
 centroid=single(cenDat);
 x=cenDat(mod(1:size(cenDat,1),2)==1,:);
-%x=x(mod(1:size(x,1),3)==0,:);
 y=cenDat(mod(1:size(cenDat,1),2)==0,:);
-%y=y(mod(1:size(y,1),3)==0,:);
 clearvars cenDat 
 
 % Subsample the data to 1,000 data points per fly
@@ -504,45 +431,47 @@ centroid(:,mod(1:size(centroid,2),2)==1)=x;
 centroid(:,mod(1:size(centroid,2),2)==0)=y;
 clearvars x y
 
-tmp_tElapsed=tElapsed(mod(1:length(tElapsed),3)==0);
-centroid=[tmp_tElapsed centroid];
-clearvars tmp_tElapsed
 
+tmp_speed=speed(mod(1:length(tElapsed),3)==0,:);
+%centroid=[tmp_tElapsed centroid];
+%clearvars tmp_tElapsed
+%}
 % Extract handedness metrics
 
-cData=circadianHandData(centroid,(size(centroid,2)-1)/2,centers);
-flyCircles=circAngle(cData,[cData(:).width]);
-circPlotHandTraces(flyCircles,centroid,centers,1);
+cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers);
+flyCircles=avgAngle_legacy(cData,[cData(:).width],tmp_speed);
+circPlotHandTraces(flyCircles,centroid,centers,0);
 
 clearvars cData centroid centers
 
 %% Save data to struct
 
-circData.ang_hist=[flyCircles(:).angleavg];
-circData.mu=[flyCircles(:).mu];
+flyTracks.exp='Circadian';
+flyTracks.ang_hist=[flyCircles(:).angleavg];
+flyTracks.mu=[flyCircles(:).mu];
 clearvars flyCircles
 
-circData.plotData=plotData;
-circData.tElapsed=tElapsed;
-circData.EvenHrIndices=EvenHrIndices;
-circData.timeLabels=timeLabels;
-circData.activeFlies=nanmean(speed)>0.01;
-circData.tLightsON=tON;
-circData.tLightsOFF=tOFF;
-circData.iLightsON=lightON;
-circData.iLightsOFF=lightOFF;
-circData.numActive=sum(circData.activeFlies);
-circData.speed=speed;
-circData.arousal=arousal;
-circData.singlePlots=singlePlots;
-circData.motorON=motorON;
-circData.motorOFF=motorOFF;
-circData.experiment_start=tStart;
-circData.freq=m_freq;
-circData.amp=m_pulse_amp;
-circData.interval=m_interval;
-circData.nPulse=m_pulse_number;
-clearvars -except circData fpath tStart strain treatment
+flyTracks.plotData=plotData;
+flyTracks.tStamps=tElapsed;
+flyTracks.EvenHrIndices=EvenHrIndices;
+flyTracks.timeLabels=timeLabels;
+flyTracks.activeFlies=nanmean(speed)>0.01;
+flyTracks.tLightsON=tON;
+flyTracks.tLightsOFF=tOFF;
+flyTracks.iLightsON=lightON;
+flyTracks.iLightsOFF=lightOFF;
+flyTracks.numActive=sum(flyTracks.activeFlies);
+flyTracks.speed=speed;
+flyTracks.arousal=arousal;
+flyTracks.singlePlots=singlePlots;
+flyTracks.motorON=motorON;
+flyTracks.motorOFF=motorOFF;
+flyTracks.experiment_start=tStart;
+flyTracks.freq=m_freq;
+flyTracks.amp=m_pulse_amp;
+flyTracks.interval=m_interval;
+flyTracks.nPulse=m_pulse_number;
+clearvars -except flyTracks fpath tStart strain treatment
 
-save(strcat(fpath,'\',tStart,'_',strain,'_',treatment,'_','circadian.mat'),'circData');
+save(strcat(fpath,'\',tStart,'_',strain,'_',treatment,'_','circadian.mat'),'flyTracks');
 
