@@ -1,4 +1,4 @@
-function [tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize)
+function [dt,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize)
 
 %% Define parameters and variables for analysis
 

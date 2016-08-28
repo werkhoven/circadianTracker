@@ -422,19 +422,15 @@ clearvars x y
 
 % Extract handedness metrics
 cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers,dt,pix2mm);
-flyCircles=avgAngle_legacy(cData,[cData(:).width]);
-%circPlotHandTraces(flyCircles,centroid,centers,0);
-
-clearvars centroid centers
 speed=[cData(:).speed];
-clearvars cData
+clearvars centroid centers
 
 %% Generate population and individual plots
 
 interval=2;         % Width of sliding window in min
 stepSize=0.2;       % Incrimental step size of sliding window in min
 
-[tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
+[dt,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
     circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize);
 
 %% Calculate baseline activity and arousal decay time
@@ -442,6 +438,13 @@ stepSize=0.2;       % Incrimental step size of sliding window in min
 if ~isempty(motorON) && ~isempty(motorOFF)
 [arousal,singlePlots]=circadianAnalyzeArousalResponse(speed,motorON,motorOFF,tElapsed);
 end
+
+% Calculate mu and generate circling plots
+flyCircles=avgAngle_legacy(cData,[cData(:).width]);
+%circPlotHandTraces(flyCircles,centroid,centers,0);
+
+clearvars cData
+
 %% Save data to struct
 
 flyTracks.exp='Circadian';
@@ -450,6 +453,7 @@ flyTracks.ang_hist=[flyCircles(:).angleavg];
 flyTracks.mu=[flyCircles(:).mu];
 clearvars flyCircles
 
+flyTracks.pix2mm=pix2mm;
 flyTracks.plotData=plotData;
 flyTracks.tStamps=tElapsed;
 flyTracks.EvenHrIndices=EvenHrIndices;
