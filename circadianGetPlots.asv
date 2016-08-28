@@ -9,9 +9,7 @@ motorData=dlmread(motorID);
 interval=interval*60;
 numFlies=size(motorData,2)-3;
 dt=motorData(:,2);
-for i=1:size(speed,2)
-speed(:,i)=speed(:,i)./dt.*pix2mm;
-end
+speed=speed
 tElapsed=cumsum(dt);
 stepSize=stepSize*60;
 transitions=[0 diff(motorData(:,3))'];

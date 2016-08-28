@@ -421,7 +421,7 @@ clearvars x y
 %}
 
 % Extract handedness metrics
-cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers,dt,pix2mm);
+cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers);
 speed=[cData(:).speed];
 clearvars centroid centers
 
@@ -430,8 +430,8 @@ clearvars centroid centers
 interval=2;         % Width of sliding window in min
 stepSize=0.2;       % Incrimental step size of sliding window in min
 
-[dt,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
-    circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize);
+[dt,tElapsed,speed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
+    circadianGetPlots(motorID,speed,pix2mm,tStart,tON,tOFF,interval,stepSize);
 
 %% Calculate baseline activity and arousal decay time
 
@@ -440,6 +440,9 @@ if ~isempty(motorON) && ~isempty(motorOFF)
 end
 
 % Calculate mu and generate circling plots
+for i=1:size(speed,2)
+    cData(i).speed=speed(:,i);
+end
 flyCircles=avgAngle_legacy(cData,[cData(:).width]);
 %circPlotHandTraces(flyCircles,centroid,centers,0);
 
