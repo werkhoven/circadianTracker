@@ -1,4 +1,4 @@
-function [lastCentroid,centStamp,area]=optoMatchCentroids2Wells(cenDat,area,centers,speedThresh,distanceThresh,lastCentroid,centStamp,tElapsed)
+function [lastCentroid,centStamp]=optoMatchCentroids2Wells(cenDat,area,centers,speedThresh,distanceThresh,lastCentroid,centStamp,tElapsed)
 
 % Define placeholder data variables equal to number ROIs
 tempCenDat=NaN(size(centers,1),2);

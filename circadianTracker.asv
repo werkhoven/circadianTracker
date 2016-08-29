@@ -31,9 +31,11 @@ writetable(labels, labelID);                                                % Sa
 % Create placeholder files
 cenID = [handles.fpath '\' tString strain '_' treatment '_Centroid.dat'];         % File ID for centroid data
 motorID = [handles.fpath '\' tString strain '_' treatment '_Motor.dat'];          % File ID for motor data
+areaID = [handles.fpath '\' tString strain '_' treatment '_Area.dat'];         % File ID for centroid data
  
 dlmwrite(cenID, []);                                                        % create placeholder ASCII file
 dlmwrite(motorID, []);                                                        % create placeholder ASCII file
+dlmwrite(areaID, []);                                                        % create placeholder ASCII file
 
 %% Initialize dialogue with Teensy
 
@@ -266,23 +268,25 @@ while tElapsed < handles.exp_duration
                 % Extract image properties and exclude centroids not satisfying
                 % size criteria
                 props=regionprops((diffIm>handles.tracking_thresh),'Centroid','Area');
-                validCentroids=([props.Area]>6&[props.Area]<250);
+                validCentroids=([props.Area]>7&[props.Area]<250);
                 cenDat=reshape([props(validCentroids).Centroid],2,length([props(validCentroids).Centroid])/2)';
+                area=reshape([props(validCentroids).Area],1,length([props(validCentroids).Area]))';
 
                 % Match centroids to ROIs by finding nearest ROI center
                 [lastCentroid,centStamp]=...
-                    optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
+                    optoMatchCentroids2Wells(cenDat,area,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
         end
 
 %% Update the display
             
         % Write data to the hard drive every third frame to reduce data
         dlmwrite(cenID, single(lastCentroid'), '-append');
+        dlmwrite(areaID, uint16(area'), '-append');
 
 %% Write data to the hardrive 
         format long
         %out(counter,:)=[mod(toc,100) NaN NaN isVibrationOn*isPulseOn reshape(centroidsTemp',1,96*2)];
-        dist=sqrt((lastCentroid(:,1)-prevCentroids(:,1)).^2+(lastCentroid(:,2)-prevCentroids(:,2)).^2);
+        %dist=sqrt((lastCentroid(:,1)-prevCentroids(:,1)).^2+(lastCentroid(:,2)-prevCentroids(:,2)).^2);
         dt=tElapsed-prev_tStamp;
         dlmwrite(motorID,[counter single(dt) single(isVibrationOn)],'-append','delimiter','\t','precision',6);
 
@@ -481,6 +485,7 @@ flyTracks.amp=m_pulse_amp;
 flyTracks.interval=m_interval;
 flyTracks.nPulse=m_pulse_number;
 clearvars -except flyTracks fpath tStart strain treatment
-tString=[num2str(tStart(1)) num2str(tStart(2)) num2str(tStart(3)) num2str(tStart(4)) num2str(tStart(5)) num2str(tStart(6))];
-save(strcat(fpath,'\',tStart,'_',strain,'_',treatment,'_','Circadian.mat'),'flyTracks');
+tString=[num2str(tStart(1)) '-' num2str(tStart(2)) '-' num2str(tStart(3)) '-' num2str(tStart(4)) '-' num2str(tStart(5)) '-' num2str(tStart(6))];
+save(strcat(fpath,'\',tString,'_',strain,'_',treatment,'_','Circadian.mat'),'flyTracks');
+clear
 
