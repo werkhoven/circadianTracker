@@ -205,6 +205,7 @@ pixMean=nanmean(pixelDist);
 %% MAIN EXPERIMENTAL LOOP
 
 % Initialize Time Variables
+tStart=clock;
 tic
 counter=1;
 ref_counter=1;
@@ -480,6 +481,7 @@ flyTracks.amp=m_pulse_amp;
 flyTracks.interval=m_interval;
 flyTracks.nPulse=m_pulse_number;
 clearvars -except flyTracks fpath tStart strain treatment
-
-save(strcat(fpath,'\',tStart,'_',strain,'_',treatment,'_','Circadian.mat'),'flyTracks');
+tString=[num2str(tStart(1)) '-' num2str(tStart(2)) '-' num2str(tStart(3)) '-' num2str(tStart(4)) '-' num2str(tStart(5)) '-' num2str(tStart(6))];
+save(strcat(fpath,'\',tString,'_',strain,'_',treatment,'_','Circadian.mat'),'flyTracks');
+clear
 

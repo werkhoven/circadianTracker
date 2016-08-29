@@ -205,6 +205,7 @@ pixMean=nanmean(pixelDist);
 %% MAIN EXPERIMENTAL LOOP
 
 % Initialize Time Variables
+tStart=clock;
 tic
 counter=1;
 ref_counter=1;
@@ -421,7 +422,7 @@ clearvars x y
 %}
 
 % Extract handedness metrics
-cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers,dt,pix2mm);
+cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers);
 speed=[cData(:).speed];
 clearvars centroid centers
 
@@ -430,8 +431,8 @@ clearvars centroid centers
 interval=2;         % Width of sliding window in min
 stepSize=0.2;       % Incrimental step size of sliding window in min
 
-[dt,tElapsed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
-    circadianGetPlots(motorID,speed,tStart,tON,tOFF,interval,stepSize);
+[dt,tElapsed,speed,plotData,EvenHrIndices,timeLabels,lightON,lightOFF,motorON,motorOFF]=...
+    circadianGetPlots(motorID,speed,pix2mm,tStart,tON,tOFF,interval,stepSize);
 
 %% Calculate baseline activity and arousal decay time
 
@@ -440,6 +441,9 @@ if ~isempty(motorON) && ~isempty(motorOFF)
 end
 
 % Calculate mu and generate circling plots
+for i=1:size(speed,2)
+    cData(i).speed=speed(:,i);
+end
 flyCircles=avgAngle_legacy(cData,[cData(:).width]);
 %circPlotHandTraces(flyCircles,centroid,centers,0);
 
@@ -477,6 +481,6 @@ flyTracks.amp=m_pulse_amp;
 flyTracks.interval=m_interval;
 flyTracks.nPulse=m_pulse_number;
 clearvars -except flyTracks fpath tStart strain treatment
-
+tString=[num2str(tStart(1)) num2str(tStart(2)) num2str(tStart(3)) num2str(tStart(4)) num2str(tStart(5)) num2str(tStart(6))];
 save(strcat(fpath,'\',tStart,'_',strain,'_',treatment,'_','Circadian.mat'),'flyTracks');
 

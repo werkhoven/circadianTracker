@@ -7,7 +7,7 @@ motorData=dlmread(motorID);
 % Interval specifies the length of the sliding window in minutes and must
 % be converted to milliseconds
 interval=interval*60;
-numFlies=size(motorData,2)-3;
+numFlies=size(speed,2);
 dt=motorData(:,2);
 for i=1:size(speed,2)
 speed(:,i)=speed(:,i)./dt.*pix2mm;
