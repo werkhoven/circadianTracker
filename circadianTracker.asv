@@ -102,7 +102,7 @@ while ~stop
     
     handles.tracking_thresh=get(handles.threshold_slider,'value');
     props=regionprops((diffIm>handles.tracking_thresh),'Centroid','Area');
-    validCentroids=([props.Area]>6&[props.Area]<250);
+    validCentroids=([props.Area]>5&[props.Area]<250);
     cenDat=reshape([props(validCentroids).Centroid],2,length([props(validCentroids).Centroid])/2)';
     
     % Display thresholded image and plot centroids
@@ -129,23 +129,48 @@ colormap('gray');
 imagesc(im)
 [xPlate,yPlate]=getline();
 sorted_x=sort(xPlate);
+poly_pos=NaN(4,2);
+poly_pos(:,1)=xPlate(2:end);
+poly_pos(:,2)=yPlate(2:end);
+hparent=gca;
+h = impoly(hparent, poly_pos);
 
-% Get the plate width in pixels
-plate_width=mean(sorted_x(length(sorted_x)-1:length(sorted_x)-1))-mean(sorted_x([1 2]));
-pix2mm=108.2/plate_width;   % pixel to mm conversion factor (plate width in mm / plate width in pixels)
+stop=boolean(0);
+h2=[];
 
-isPlateGridPlotted=0;
+while ~stop
+    stop=boolean(get(handles.accept_thresh_pushbutton,'value'));
 
-hold on
-foundWells=find96WellPlate(im,0,xPlate,yPlate);
+    % Get the plate width in pixels
+    plate_bounds=getPosition(h);
+    sorted_x=sort(plate_bounds(:,1));
+    plate_width=mean(sorted_x(length(sorted_x)-1:length(sorted_x)))-mean(sorted_x([1 2]));
+    pix2mm=108.2/plate_width;   % pixel to mm conversion factor (plate width in mm / plate width in pixels)
 
-% Permute well number to match 96 well plate
-permute=fliplr(reshape(96:-1:1,8,12)');
-permute=permute(:);
-foundWells.coords=foundWells.coords(permute,:);
-colScale=foundWells.colScale;
-ROISize=round((colScale/7)*ROIScale);
-ROI_centers=round(foundWells.coords);
+    isPlateGridPlotted=0;
+
+    hold on
+    foundWells=find96WellPlate(im,0,plate_bounds(:,1),plate_bounds(:,2));
+
+    % Permute well number to match 96 well plate
+    permute=fliplr(reshape(96:-1:1,8,12)');
+    permute=permute(:);
+    foundWells.coords=foundWells.coords(permute,:);
+    colScale=foundWells.colScale;
+    ROISize=round((colScale/7)*ROIScale);
+    ROI_centers=round(foundWells.coords);
+    
+    %cla reset
+    %imagesc(im, 'Parent', handles.axes1);
+    delete(h2);
+    hold on
+    h2=viscircles(ROI_centers, repmat(ROISize,size(ROI_centers,1),1));
+    hold off
+    drawnow
+
+end
+set(handles.accept_thresh_pushbutton,'value',0);
+
 lastCentroid=ROI_centers;
 
 centStamp=zeros(size(ROI_centers,1),1);
@@ -172,16 +197,16 @@ while ct<pixDistSize;
 
                % Extract regionprops and record centroid for blobs with (4 > area > 120) pixels
                props=regionprops((diffIm>handles.tracking_thresh),'Centroid','Area');
-               validCentroids=([props.Area]>6&[props.Area]<250);
+               validCentroids=([props.Area]>5&[props.Area]<250);
                
                % Keep only centroids satisfying size constraints and reshape into
                % ROInumber x 2 array
                cenDat=reshape([props(validCentroids).Centroid],2,length([props(validCentroids).Centroid])/2)';
-               oriDat=zeros(size(cenDat,1),1);
-               
-               % Sort centroids to their respective ROIs
-               [lastCentroid,centStamp]=...
-                    optoMatchCentroids2Wells(cenDat,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
+                area=reshape([props(validCentroids).Area],1,length([props(validCentroids).Area]))';
+
+                % Match centroids to ROIs by finding nearest ROI center
+                [lastCentroid,centStamp,area]=...
+                    optoMatchCentroids2Wells(cenDat,area,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
                 
                %Update display
                cla reset
@@ -225,12 +250,14 @@ t_ramp=0;
 tVibration=0;
 isVibrationOn=0;
 resetRef=0;
+area=NaN(1,size(ROI_centers,1));
+iCount=0;
 
 while tElapsed < handles.exp_duration
 
     % Update timestamp
     tElapsed=toc;
-    pause(0.15);
+    pause(0.05);
  
         % Grab new image and subtract reference    
         im=peekdata(handles.vid,1);         % acquire image from camera
@@ -251,7 +278,6 @@ while tElapsed < handles.exp_duration
            disp('NOISE THRESHOLD REACHED, REFERENCES RESET')
         end
         
-
         if pixDev(mod(ct,10)+1)<4 && ~isVibrationOn
 
             % Detect every ref frame update
@@ -273,15 +299,19 @@ while tElapsed < handles.exp_duration
                 area=reshape([props(validCentroids).Area],1,length([props(validCentroids).Area]))';
 
                 % Match centroids to ROIs by finding nearest ROI center
-                [lastCentroid,centStamp]=...
+                [lastCentroid,centStamp,area]=...
                     optoMatchCentroids2Wells(cenDat,area,ROI_centers,speedThresh,ROISize,lastCentroid,centStamp,tElapsed);
+                iCount=iCount+1;
         end
 
 %% Update the display
             
         % Write data to the hard drive every third frame to reduce data
+        if isempty(area)
+            area=NaN(size(lastCentroid,1),1);
+        end
         dlmwrite(cenID, single(lastCentroid'), '-append');
-        dlmwrite(areaID, uint16(area'), '-append');
+        dlmwrite(areaID, single(area'), '-append');
 
 %% Write data to the hardrive 
         format long
@@ -359,15 +389,16 @@ while tElapsed < handles.exp_duration
     end
     
     %% Update frame counter and timestamp
-    if mod(counter,30)==0
+    %if mod(counter,5)==0
        cla reset
        imagesc(im, 'Parent', handles.axes1);
        hold on
        % Mark centroids
        plot(lastCentroid(:,1),lastCentroid(:,2),'o','Color','r');
+       viscircles(ROI_centers, repmat(ROISize,size(ROI_centers,1),1));
        hold off
        drawnow
-    end
+    %end
     
     set(handles.edit_frame_rate,'String',num2str(1/(tElapsed-prev_tStamp)));
     counter=counter+1;
@@ -377,6 +408,7 @@ while tElapsed < handles.exp_duration
     clearvars im diffIm props validCentroids cenDat speeds dist dt
 
 end
+
 
 t = clock;
 tON = handles.lights_ON;
@@ -389,8 +421,8 @@ fpath=handles.fpath;
 
 %% Analyze handedness
 
-clearvars -except motorID cenID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp fpath strain treatment tStart...
-    arousal singlePlots tElapsed speed plotData EvenHrIndices timeLabels lightON lightOFF motorON motorOFF labelID pix2mm
+clearvars -except motorID cenID areaID t tON tOFF m_freq m_interval m_pulse_number m_pulse_amp fpath strain treatment tStart...
+    arousal singlePlots tElapsed speed plotData EvenHrIndices timeLabels lightON lightOFF motorON motorOFF labelID pix2mm iCount
 
 % Create a plot of the centroid data as a check on the tracking
 cenDat=dlmread(cenID);
@@ -420,11 +452,6 @@ centroid(:,mod(1:size(centroid,2),2)==1)=x;
 centroid(:,mod(1:size(centroid,2),2)==0)=y;
 clearvars x y
 
-%tmp_speed=speed(mod(1:length(tElapsed),3)==0,:);
-%centroid=[tmp_tElapsed centroid];
-%clearvars tmp_tElapsed
-%}
-
 % Extract handedness metrics
 cData=flyBurHandData_legacy(centroid,(size(centroid,2)/2),centers);
 speed=[cData(:).speed];
@@ -448,10 +475,14 @@ end
 for i=1:size(speed,2)
     cData(i).speed=speed(:,i);
 end
-flyCircles=avgAngle_legacy(cData,[cData(:).width]);
+
+clearvars dt
+
+area=single(dlmread(areaID));
+flyCircles=avgAngle_legacy(cData,[cData(:).width],area);
 %circPlotHandTraces(flyCircles,centroid,centers,0);
 
-clearvars cData
+clearvars cData area
 
 %% Save data to struct
 
