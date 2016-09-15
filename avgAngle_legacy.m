@@ -26,6 +26,7 @@ for i=1:numFlies
     angle=NaN(size(spd_mask));
     angle(spd_mask & wdth_mask & ceil_mask)=angle_top;
     angle(spd_mask & wdth_mask & floor_mask)=angle_bottom;
+    angle(isnan(angle))=[];
     
     %% Calculate a mu score for each fly
 

@@ -82,6 +82,7 @@ im=squeeze(im(:,:,imagingLayer)); % Extracting the green channel (works the best
 refImage=im;
 refStack=repmat(refImage,1,1,handles.ref_stack_size);
 fig=imshow(refImage);
+set(gca,'Xtick',[],'Ytick',[]);
 
 
 %% Select tracking threshold
@@ -109,6 +110,7 @@ while ~stop
     %imshow(diffIm>handles.tracking_thresh);
     cla reset
     imagesc(diffIm>handles.tracking_thresh, 'Parent', handles.axes1);
+    set(gca,'Xtick',[],'Ytick',[]);
     set(handles.edit_frame_rate,'String',num2str(1/(tElapsed-prev_tStamp)));
     
     hold on
@@ -166,6 +168,7 @@ while ~stop
     hold on
     h2=viscircles(ROI_centers, repmat(ROISize,size(ROI_centers,1),1));
     hold off
+    set(gca,'Xtick',[],'Ytick',[]);
     drawnow
 
 end
@@ -215,6 +218,7 @@ while ct<pixDistSize;
                % Mark centroids
                plot(lastCentroid(:,1),lastCentroid(:,2),'o','Color','r');
                hold off
+               set(gca,'Xtick',[],'Ytick',[]);
                drawnow
                
                
@@ -397,6 +401,7 @@ while tElapsed < handles.exp_duration
        plot(lastCentroid(:,1),lastCentroid(:,2),'o','Color','r');
        viscircles(ROI_centers, repmat(ROISize,size(ROI_centers,1),1));
        hold off
+       set(gca,'Xtick',[],'Ytick',[]);
        drawnow
     %end
     
@@ -428,9 +433,7 @@ clearvars -except motorID cenID areaID t tON tOFF m_freq m_interval m_pulse_numb
 cenDat=dlmread(cenID);
 cenDat=single(cenDat);
 x=cenDat(mod(1:size(cenDat,1),2)==1,:);
-%x=x(mod(1:length(x),3)==0,:);
 y=cenDat(mod(1:size(cenDat,1),2)==0,:);
-%y=y(mod(1:length(y),3)==0,:);
 clearvars cenDat 
 
 % Subsample the data to 1,000 data points per fly

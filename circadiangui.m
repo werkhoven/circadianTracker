@@ -22,7 +22,7 @@ function varargout = circadiangui(varargin)
 
 % Edit the above text to modify the response to help circadiangui
 
-% Last Modified by GUIDE v2.5 04-Jun-2016 13:55:44
+% Last Modified by GUIDE v2.5 05-Sep-2016 19:15:34
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -60,6 +60,7 @@ set(handles.threshold_slider,'value',40);
 imaqreset
 c=imaqhwinfo;
 
+% Select appropriate adaptor for connected camera
 for i=1:length(c.InstalledAdaptors)
     camInfo=imaqhwinfo(c.InstalledAdaptors{i});
     if ~isempty(camInfo.DeviceIDs)
@@ -68,10 +69,18 @@ for i=1:length(c.InstalledAdaptors)
 end
 camInfo=imaqhwinfo(c.InstalledAdaptors{adaptor});
 
+% Set the device to default format and populate pop-up menu
 if ~isempty(camInfo.DeviceInfo.SupportedFormats);
 set(handles.Cam_popupmenu,'String',camInfo.DeviceInfo.SupportedFormats);
-set(handles.Cam_popupmenu,'Value',1);
-handles.Cam_mode=camInfo.DeviceInfo.SupportedFormats(1);
+default_format=camInfo.DeviceInfo.DefaultFormat;
+
+    for i=1:length(camInfo.DeviceInfo.SupportedFormats)
+        if strcmp(default_format,camInfo.DeviceInfo.SupportedFormats{i})
+            set(handles.Cam_popupmenu,'Value',i);
+            camInfo.ActiveMode=camInfo.DeviceInfo.SupportedFormats(i);
+        end
+    end
+    
 else
 set(handles.Cam_popupmenu,'String','Camera not detected');
 end
@@ -104,7 +113,7 @@ handles.White_intensity=uint8((White_intensity/100)*255);
 writeInfraredWhitePanel(handles.teensy_port,1,IR_intensity);
 writeInfraredWhitePanel(handles.teensy_port,0,handles.White_intensity);
 
-%% Initialize circadian parameters
+%% Initialize circadian parameters from default values in the GUI
 handles.lights_ON=get(handles.edit_lightsON,'String');
 handles.lights_OFF=get(handles.edit_lightsOFF,'string');
 handles.pulse_frequency=str2num(get(handles.edit_pulse_frequency,'string'));
@@ -114,9 +123,10 @@ handles.pulse_interval=str2num(get(handles.edit_pulse_interval,'string'));
 handles.ref_stack_size=str2num(get(handles.edit_ref_stack_size,'String'));
 handles.ref_freq=str2num(get(handles.edit_ref_freq,'String'));
 handles.exp_duration=str2num(get(handles.edit_exp_duration,'String'));
-handles.cam_gain=str2num(get(handles.edit_gain,'String'));
-handles.cam_exposure=str2num(get(handles.edit_exposure,'String'));
 handles.tracking_thresh=get(handles.threshold_slider,'Value');
+handles.camInfo.Gain=str2num(get(handles.edit_gain,'String'));
+handles.camInfo.Exposure=str2num(get(handles.edit_exposure,'String'));
+handles.camInfo.Shutter=str2num(get(handles.edit_cam_shutter,'String'));
 
 tString=get(handles.edit_lightsON,'String');
 divider=find(tString==':');
@@ -177,7 +187,7 @@ function Cam_popupmenu_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 strCell=get(handles.Cam_popupmenu,'string');
-handles.Cam_mode=strCell(get(handles.Cam_popupmenu,'Value'));
+handles.camInfo.ActiveMode=strCell(get(handles.Cam_popupmenu,'Value'));
 guidata(hObject, handles);
 
 
@@ -304,13 +314,17 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
-
 function edit_exposure_Callback(hObject, eventdata, handles)
 % hObject    handle to edit_exposure (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-handles.cam_exposure=str2num(get(handles.edit_exposure,'String'));
+handles.camInfo.Exposure=str2num(get(handles.edit_exposure,'String'));
+
+% If video is in preview mode, update the camera immediately
+if isfield(handles,'src')
+    handles.src.Exposure=handles.camInfo.Exposure;
+end
+
 guidata(hObject, handles);
 
 
@@ -326,13 +340,17 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-
-
 function edit_gain_Callback(hObject, eventdata, handles)
 % hObject    handle to edit_gain (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-handles.cam_gain=str2num(get(handles.edit_gain,'String'));
+handles.camInfo.Gain=str2num(get(handles.edit_gain,'String'));
+
+% If video is in preview mode, update the camera immediately
+if isfield(handles,'src')
+    handles.src.Gain=handles.camInfo.Gain;
+end
+
 guidata(hObject, handles);
 
 
@@ -486,10 +504,14 @@ function Cam_confirm_pushbutton_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 imaqreset;
 pause(0.02);
-handles.vid=initializeCamera(handles.camInfo.AdaptorName,handles.camInfo.DeviceIDs{1},handles.Cam_mode{:});
+handles.vid=initializeCamera(handles.camInfo);
+handles.src=getselectedsource(handles.vid);
+start(handles.vid);
 pause(0.1);
 im=peekdata(handles.vid,1);
-imshow(im);
+handles.hImage=image(im);
+set(gca,'Xtick',[],'Ytick',[]);
+stop(handles.vid);
 guidata(hObject, handles);
 
 
@@ -498,15 +520,10 @@ function Cam_preview_pushbutton_Callback(hObject, eventdata, handles)
 % hObject    handle to Cam_preview_pushbutton (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-
-stop=get(handles.Cam_preview_pushbutton,'Value');
-if stop==1
-    while stop==1
-        imagedata=peekdata(handles.vid,1);
-        pause(0.005);
-        imshow(imagedata(:,:,2));
-        stop=get(handles.Cam_preview_pushbutton,'Value');
-    end
+if isfield(handles, 'vid') == 0
+    errordlg('Please confirm camera settings')
+else
+    preview(handles.vid,handles.hImage);       
 end
 
 
@@ -517,6 +534,8 @@ function Cam_stopPreview_pushbutton_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 set(handles.Cam_preview_pushbutton,'Value',0);
 set(handles.Cam_stopPreview_pushbutton,'Value',0);
+stoppreview(handles.vid);
+rmfield(handles,'src');
 guidata(hObject, handles);
 
 
@@ -681,6 +700,36 @@ function edit_frame_rate_Callback(hObject, eventdata, handles)
 % --- Executes during object creation, after setting all properties.
 function edit_frame_rate_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to edit_frame_rate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+function edit_cam_shutter_Callback(hObject, eventdata, handles)
+% hObject    handle to edit_cam_shutter (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit_cam_shutter as text
+%        str2double(get(hObject,'String')) returns contents of edit_cam_shutter as a double
+handles.camInfo.Shutter=str2num(get(handles.edit_cam_shutter,'String'));
+
+% If video is in preview mode, update the camera immediately
+if isfield(handles,'src')
+    handles.src.Shutter=handles.camInfo.Shutter;
+end
+
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function edit_cam_shutter_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit_cam_shutter (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
