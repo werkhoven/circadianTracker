@@ -79,13 +79,13 @@ end
 imaqreset;
 pause(0.15);
 vid=initializeCamera(handles.camInfo);
-start(vid);
 pause(0.15);
+start(vid);
 
 %% GET PLATE COORDINATES
 
-im=peekdata(handles.vid,1); % acquire image from camera
-im=squeeze(im(:,:,imagingLayer)); % Extracting the green channel (works the best)
+im=peekdata(vid,1); % acquire image from camera
+im=im(:,:,2); % Extracting the green channel (works the best)
 refImage=im;
 refStack=repmat(refImage,1,1,handles.ref_stack_size);
 fig=imshow(refImage);
@@ -101,7 +101,7 @@ prev_tStamp=0;
 while ~stop
     
     tElapsed=toc;
-    im=peekdata(handles.vid,1); % acquire image from camera
+    im=peekdata(vid,1); % acquire image from camera
     im=squeeze(im(:,:,imagingLayer)); % Extracting the green channel (works the best)
     diffIm=refImage-im;
     pause(0.00001);
@@ -201,7 +201,7 @@ while ct<pixDistSize;
                set(handles.edit_frame_rate, 'String', num2str(pixDistSize-ct));
 
                % Get centroids and sort to ROIs
-               imagedata=peekdata(handles.vid,1);
+               imagedata=peekdata(vid,1);
                imagedata=imagedata(:,:,imagingLayer);
                diffIm=refImage-imagedata;
 
@@ -271,7 +271,7 @@ while tElapsed < handles.exp_duration
     pause(0.05);
  
         % Grab new image and subtract reference    
-        im=peekdata(handles.vid,1);         % acquire image from camera
+        im=peekdata(vid,1);         % acquire image from camera
         im=im(:,:,imagingLayer);            % extract imagingLayer channel
         diffIm=(refImage-im);               % Take difference image
 
