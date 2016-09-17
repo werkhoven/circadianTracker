@@ -81,7 +81,7 @@ pause(0.15);
 vid=initializeCamera(handles.camInfo);
 pause(0.15);
 start(vid);
-
+pause(0.15);
 %% GET PLATE COORDINATES
 
 im=peekdata(vid,1); % acquire image from camera
